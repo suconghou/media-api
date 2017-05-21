@@ -65,8 +65,7 @@ class Media
 				$url=$ch;
 			}
 			$runing=null;
-			do
-			{
+			do {
 				curl_multi_exec($mh,$runing);
 				curl_multi_select($mh);
 			}
@@ -92,6 +91,17 @@ class Media
 	public static function post($urls,$data=null,$headers=['User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36'],$timeout=40)
 	{
 		return self::http($urls,$data,$headers,$timeout);
+	}
+
+	public static function download($url,$save,$headers=['User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36'],$timeout=3600)
+	{
+		$fp =  fopen($save,'w+');
+		$ch = curl_init($url);
+		curl_setopt_array($ch, [CURLOPT_FILE=>$fp,CURLOPT_HTTPHEADER=>$headers,CURLOPT_FOLLOWLOCATION=>1,CURLOPT_SSL_VERIFYPEER=>0,CURLOPT_TIMEOUT=>$timeout,CURLOPT_CONNECTTIMEOUT=>$timeout]);
+		curl_exec ($ch);
+		curl_close ($ch);
+		fclose($fp);
+		return true;
 	}
 
 }
@@ -130,7 +140,7 @@ class Media_Youku
 		}
 	}
 
-	function info($m3u8=1)
+	function info($m3u8=0)
 	{
 		$data=['code'=>100];
 		if($this->infoUrl)
@@ -573,16 +583,13 @@ class Media_Douyu
 {
 
 	private $infoUrl;
-	const API_SECRET='bLFlashflowlad92';
-	const KEY='A12Svb&%1UUmf@hC';
+	const KEY='9TUk5fjjUjg9qIMH3sdnh';
 	function __construct($url)
 	{
 		if(preg_match('/\.com\/(\w{5,12})/',$url,$matches))
 		{
 			$channel=$matches[1];
-			$ts=intval(time()/60);
-			$sign=md5(sprintf('%s%s%s',$channel,self::API_SECRET,$ts));
-			$this->infoUrl=sprintf('http://www.douyutv.com/swf_api/room/%s?cdn=&nofan=yes&_t=%s&sign=%s',$channel,$ts,$sign);
+			$this->infoUrl=sprintf('https://m.douyu.com/html5/live?roomId=%s',$channel);
 		}
 	}
 
@@ -594,24 +601,21 @@ class Media_Douyu
 			$text=Media::get($this->infoUrl);
 			if($text)
 			{
-				$tt=intval(time()/60);
+				$tt=time();
 				$arr=json_decode($text,true);
 				$data['img']=$arr['data']['room_src'];
 				$data['title']=$arr['data']['room_name'];
-				$data['show_time']=$arr['data']['show_time'];
 				$data['online']=$arr['data']['online'];
 				$data['nickname']=$arr['data']['nickname'];
-				$data['desc']=$arr['data']['show_details'];
-				$data['avatar']=$arr['data']['owner_avatar'];
+				$data['avatar']=$arr['data']['avatar'];
 				$roomId=$arr['data']['room_id'];
 				$data['code']=0;
-				if($data['online'])
+				if($arr['data']['show_status']==1)
 				{
-					$did=strtoupper(md5(uniqid()));
-					$sign=md5(sprintf('%s%s%s%s',$roomId,$did,self::KEY,$tt));
-					$payload = ['cdn'=>'', 'rate'=>'0', 'tt'=>$tt, 'did'=>$did, 'sign'=>$sign];
-					$url=sprintf('https://www.douyu.com/lapi/live/getPlay/%s',$roomId);
-					$text=Media::post($url,http_build_query($payload));
+					$sign=md5(sprintf('lapi/live/thirdPart/getPlay/%s?aid=pcclient&rate=0&time=%s%s',$roomId,$tt,self::KEY));
+					$url=sprintf('http://coapi.douyucdn.cn/lapi/live/thirdPart/getPlay/%s?rate=0',$roomId);
+					$headers=["auth:{$sign}","time:{$tt}","aid:pcclient"];
+					$text=Media::get($url,$headers);
 					if($text)
 					{
 						$arr=json_decode($text,true);
@@ -620,11 +624,13 @@ class Media_Douyu
 							unset($text);
 							if($arr['error']==0)
 							{
-								$data['stream']=sprintf('%s/%s',$arr['data']['rtmp_url'],$arr['data']['rtmp_live']);
+								$data['hls_url']=$arr['data']['hls_url'];
+								$data['live_url']=$arr['data']['live_url'];
 							}
 							else
 							{
-								$data['stream']=null;//主播不在线
+								$data['hls_url']=null;//主播不在线
+								$data['live_url']=null;//主播不在线
 							}
 						}
 						else

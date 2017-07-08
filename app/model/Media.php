@@ -603,45 +603,53 @@ class Media_Douyu
 			{
 				$tt=time();
 				$arr=json_decode($text,true);
-				$data['img']=$arr['data']['room_src'];
-				$data['title']=$arr['data']['room_name'];
-				$data['online']=$arr['data']['online'];
-				$data['nickname']=$arr['data']['nickname'];
-				$data['avatar']=$arr['data']['avatar'];
-				$roomId=$arr['data']['room_id'];
-				$data['code']=0;
-				if($arr['data']['show_status']==1)
+				if(isset($arr['error'])&&$arr['error']==0)
 				{
-					$sign=md5(sprintf('lapi/live/thirdPart/getPlay/%s?aid=pcclient&rate=0&time=%s%s',$roomId,$tt,self::KEY));
-					$url=sprintf('http://coapi.douyucdn.cn/lapi/live/thirdPart/getPlay/%s?rate=0',$roomId);
-					$headers=["auth:{$sign}","time:{$tt}","aid:pcclient"];
-					$text=Media::get($url,$headers);
-					if($text)
+					var_dump($arr);die;
+					$data['img']=$arr['data']['room_src'];
+					$data['title']=$arr['data']['room_name'];
+					$data['online']=$arr['data']['online'];
+					$data['nickname']=$arr['data']['nickname'];
+					$data['avatar']=$arr['data']['avatar'];
+					$roomId=$arr['data']['room_id'];
+					$data['code']=0;
+					if($arr['data']['show_status']==1)
 					{
-						$arr=json_decode($text,true);
-						if($arr)
+						$sign=md5(sprintf('lapi/live/thirdPart/getPlay/%s?aid=pcclient&rate=0&time=%s%s',$roomId,$tt,self::KEY));
+						$url=sprintf('http://coapi.douyucdn.cn/lapi/live/thirdPart/getPlay/%s?rate=0',$roomId);
+						$headers=["auth:{$sign}","time:{$tt}","aid:pcclient"];
+						$text=Media::get($url,$headers);
+						if($text)
 						{
-							unset($text);
-							if($arr['error']==0)
+							$arr=json_decode($text,true);
+							if($arr)
 							{
-								$data['hls_url']=$arr['data']['hls_url'];
-								$data['live_url']=$arr['data']['live_url'];
+								unset($text);
+								if($arr['error']==0)
+								{
+									$data['hls_url']=$arr['data']['hls_url'];
+									$data['live_url']=$arr['data']['live_url'];
+								}
+								else
+								{
+									$data['hls_url']=null;//主播不在线
+									$data['live_url']=null;//主播不在线
+								}
 							}
 							else
 							{
-								$data['hls_url']=null;//主播不在线
-								$data['live_url']=null;//主播不在线
+								throw new Exception(sprintf('%s Json Error:%s',$url,$text),406);
 							}
 						}
 						else
 						{
-							throw new Exception(sprintf('%s Json Error:%s',$url,$text),406);
+							throw new Exception(sprintf('Get %s Error:No Content',$url),405);
 						}
 					}
-					else
-					{
-						throw new Exception(sprintf('Get %s Error:No Content',$url),405);
-					}
+				}
+				else
+				{
+					throw new Exception(sprintf('Get %s Error:Error data %s',$this->infoUrl,$text),407);
 				}
 			}
 			else
